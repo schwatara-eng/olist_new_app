@@ -530,7 +530,12 @@ with product_tab:
             )
             .encode(
                 x=alt.value(0),
-                y=alt.Y("row_order:O", sort=row_sort, axis=None),
+                y=alt.Y(
+                    "row_order:O",
+                    sort=row_sort,
+                    axis=None,
+                    scale=alt.Scale(paddingInner=0.25, paddingOuter=0.1),
+                ),
                 text=alt.Text("category:N"),
                 tooltip=alt.Tooltip("category:N", title="카테고리"),
             )
