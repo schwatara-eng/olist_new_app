@@ -13,9 +13,18 @@ order_tab, delivery_tab, product_tab, seller_tab, question_tab = st.tabs(
     ["주문·결제", "배송·리뷰", "상품·고객 지역", "판매자", "데이터 질문"]
 )
 
+def get_openai_client() -> OpenAI:
+    try:
+        api_key = st.secrets.get("OPENAI_API_KEY")
+    except Exception:
+        api_key = None
+
+    return OpenAI(api_key=api_key) if api_key else OpenAI()
+
+
 @st.cache_data(show_spinner=False)
 def embed_fact_documents(documents: tuple[str, ...]) -> list[list[float]]:
-    response = OpenAI().embeddings.create(
+    response = get_openai_client().embeddings.create(
         model="text-embedding-3-small",
         input=list(documents),
     )
@@ -821,7 +830,7 @@ with question_tab:
 
                 with st.spinner("질문과 사실표를 임베딩으로 비교하는 중…"):
                     document_vectors = embed_fact_documents(documents)
-                    query_vector = OpenAI().embeddings.create(
+                    query_vector = get_openai_client().embeddings.create(
                         model="text-embedding-3-small",
                         input=question.strip(),
                     ).data[0].embedding
@@ -845,7 +854,7 @@ with question_tab:
                 )
 
                 with st.spinner("찾은 근거를 바탕으로 답변을 만드는 중…"):
-                    response = OpenAI().chat.completions.create(
+                    response = get_openai_client().chat.completions.create(
                         model="gpt-4.1-mini",
                         messages=[
                             {
