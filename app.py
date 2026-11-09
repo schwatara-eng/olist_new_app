@@ -487,7 +487,7 @@ with product_tab:
                 fontSize=11,
             )
             .encode(
-                x=alt.value(8),
+                x=alt.value(0),
                 y=alt.Y("row_order:O", sort=row_sort, axis=None),
                 text=alt.Text("product_id_short:N"),
                 tooltip=alt.Tooltip("product_id:N", title="상품 ID"),
@@ -508,7 +508,7 @@ with product_tab:
                 fontSize=11,
             )
             .encode(
-                x=alt.value(8),
+                x=alt.value(0),
                 y=alt.Y("row_order:O", sort=row_sort, axis=None),
                 text=alt.Text("category:N"),
                 tooltip=alt.Tooltip("category:N", title="카테고리"),
