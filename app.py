@@ -373,6 +373,141 @@ with product_tab:
     )
 
     st.divider()
+    st.subheader("지역별 베스트셀러 상품")
+    st.caption(
+        "고객 주소의 주(state)를 기준으로 배송 완료 주문의 상품을 집계해. "
+        "상품명은 데이터에 없어 상품 ID와 카테고리를 표시하고, "
+        "각 주문 상품 행을 1개로 세며 상품 금액에서 배송비는 제외해."
+    )
+
+    sales_orders = pd.read_csv(
+        data_dir / "olist_orders_dataset.csv",
+        usecols=["order_id", "customer_id", "order_status"],
+    )
+    sales_orders = sales_orders.loc[
+        sales_orders["order_status"].eq("delivered"),
+        ["order_id", "customer_id"],
+    ]
+
+    sales_customers = pd.read_csv(
+        data_dir / "olist_customers_dataset.csv",
+        usecols=["customer_id", "customer_state"],
+    )
+    sales_items = pd.read_csv(
+        data_dir / "olist_order_items_dataset.csv",
+        usecols=["order_id", "product_id", "price"],
+    )
+    sales_products = pd.read_csv(
+        data_dir / "olist_products_dataset.csv",
+        usecols=["product_id", "product_category_name"],
+    )
+    sales_translations = pd.read_csv(
+        data_dir / "product_category_name_translation.csv",
+        usecols=["product_category_name", "product_category_name_english"],
+    )
+
+    regional_sales = sales_items.merge(
+        sales_orders,
+        on="order_id",
+        how="inner",
+        validate="many_to_one",
+    ).merge(
+        sales_customers,
+        on="customer_id",
+        how="left",
+        validate="many_to_one",
+    ).merge(
+        sales_products,
+        on="product_id",
+        how="left",
+        validate="many_to_one",
+    ).merge(
+        sales_translations,
+        on="product_category_name",
+        how="left",
+        validate="many_to_one",
+    )
+
+    regional_sales["customer_state"] = (
+        regional_sales["customer_state"].fillna("미기록")
+    )
+    regional_sales["category"] = (
+        regional_sales["product_category_name_english"]
+        .fillna(regional_sales["product_category_name"])
+        .fillna("미분류")
+    )
+
+    state_options = sorted(regional_sales["customer_state"].unique().tolist())
+    selected_state = st.selectbox(
+        "고객 지역 선택",
+        state_options,
+        key="regional_bestseller_state",
+    )
+
+    regional_best_sellers = (
+        regional_sales.loc[regional_sales["customer_state"].eq(selected_state)]
+        .groupby(["product_id", "category"], as_index=False)
+        .agg(
+            sold_items=("order_id", "size"),
+            order_count=("order_id", "nunique"),
+            product_sales=("price", "sum"),
+        )
+        .sort_values(
+            ["sold_items", "order_count"],
+            ascending=False,
+        )
+        .head(10)
+    )
+
+    if regional_best_sellers.empty:
+        st.info("선택한 지역에서 집계할 상품이 없어.")
+    else:
+        regional_best_sellers["product_label"] = (
+            regional_best_sellers["product_id"].str.slice(0, 8)
+            + "… · "
+            + regional_best_sellers["category"]
+        )
+        bestseller_chart = (
+            alt.Chart(regional_best_sellers)
+            .mark_bar(color="#337CB0")
+            .encode(
+                x=alt.X("sold_items:Q", title="판매 상품 수 (행)"),
+                y=alt.Y(
+                    "product_label:N",
+                    title="상품 ID 앞 8자리 · 카테고리",
+                    sort="-x",
+                ),
+                tooltip=[
+                    alt.Tooltip("product_id:N", title="상품 ID"),
+                    alt.Tooltip("category:N", title="카테고리"),
+                    alt.Tooltip("sold_items:Q", title="판매 상품 수", format=",d"),
+                    alt.Tooltip("order_count:Q", title="주문 수", format=",d"),
+                    alt.Tooltip(
+                        "product_sales:Q",
+                        title="상품 금액 (R$)",
+                        format=",.2f",
+                    ),
+                ],
+            )
+        )
+        st.altair_chart(bestseller_chart, use_container_width=True)
+        st.dataframe(
+            regional_best_sellers[
+                ["product_id", "category", "sold_items", "order_count", "product_sales"]
+            ].rename(
+                columns={
+                    "product_id": "상품 ID",
+                    "category": "카테고리",
+                    "sold_items": "판매 상품 수",
+                    "order_count": "주문 수",
+                    "product_sales": "상품 금액 합계 (R$)",
+                }
+            ),
+            hide_index=True,
+            use_container_width=True,
+        )
+
+    st.divider()
     st.subheader("고객 주문 분포 지도")
 
     map_customers = pd.read_csv(
