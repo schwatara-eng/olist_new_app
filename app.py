@@ -13,6 +13,22 @@ order_tab, delivery_tab, product_tab, question_tab = st.tabs(
     ["주문·결제", "배송·리뷰", "상품·지역", "데이터 질문"]
 )
 
+@st.cache_data(show_spinner=False)
+def embed_fact_documents(documents: tuple[str, ...]) -> list[list[float]]:
+    response = OpenAI().embeddings.create(
+        model="text-embedding-3-small",
+        input=list(documents),
+    )
+    return [item.embedding for item in response.data]
+
+
+@st.cache_data(show_spinner=False)
+def get_seller_churn_report(data_dir: str):
+    from olist_churn import build_churn_report
+
+    return build_churn_report(data_dir)
+
+
 with order_tab:
 
     st.subheader("주문·결제 요약")
@@ -244,35 +260,74 @@ with delivery_tab:
                 st.warning("리뷰 문장을 입력해 줘.")
 
 with product_tab:
-    st.subheader("판매자 이탈 점검")
-
-    churn_summary_path = Path(__file__).with_name(
-        "olist_churn_threshold_summary.csv"
+    st.subheader("판매자 이탈 위험 예측")
+    st.caption(
+        "최근 90일 판매 흐름으로 이후 90일 주문 중단 위험을 예측해. "
+        "시간순으로 과거 구간을 나눠 평가하는 시뮬레이션이야."
     )
 
-    if churn_summary_path.is_file():
-        churn_summary = pd.read_csv(
-            churn_summary_path,
-            dtype={"이탈 점수 기준": str},
-        ).set_index("이탈 점수 기준")
+    try:
+        with st.spinner("판매자 주문 이력을 학습하고 평가하는 중…"):
+            predictions, churn_metrics = get_seller_churn_report(str(data_dir))
 
-        threshold = st.selectbox(
-            "이탈 점수 기준",
-            churn_summary.index.tolist(),
+        threshold = st.slider(
+            "이탈 위험 표시 기준",
+            min_value=0.10,
+            max_value=0.90,
+            value=0.50,
+            step=0.05,
             key="seller_churn_threshold",
         )
 
-        result = churn_summary.loc[threshold]
-        metrics = st.columns(2)
+        metric_columns = st.columns(4)
+        metric_columns[0].metric("정밀도", f"{churn_metrics['precision']:.1%}")
+        metric_columns[1].metric("재현율", f"{churn_metrics['recall']:.1%}")
+        metric_columns[2].metric("F1", f"{churn_metrics['f1']:.1%}")
+        metric_columns[3].metric("예측 기준일", churn_metrics["snapshot_date"])
 
-        metrics[0].metric("점검 명단", f"{result['점검 명단']:,}명")
-        metrics[1].metric("찾아낸 이탈", f"{result['찾아낸 이탈']:,}명")
-        metrics[0].metric("잘못 지목", f"{result['잘못 지목']:,}명")
-        metrics[1].metric("놓친 이탈", f"{result['놓친 이탈']:,}명")
+        st.caption(
+            f"학습 기준일까지 {churn_metrics['train_through']} · "
+            f"시간순 평가 시작 {churn_metrics['test_from']} · "
+            "최근 90일 활동, 직전 90일 변화, 마지막 주문 후 경과일을 사용해."
+        )
 
-        st.caption("코랩 시험 데이터에서 실제 이탈한 판매자 108명 기준이야.")
-    else:
-        st.warning("이탈 점수 비교 CSV를 app.py와 같은 폴더에 넣어 줘.")
+        flagged = predictions.loc[
+            predictions["churn_probability"].ge(threshold)
+        ].copy()
+        st.metric("선택한 기준의 점검 판매자", f"{len(flagged):,}명")
+
+        labels = {
+            "seller_id": "판매자 ID",
+            "churn_probability": "이탈 위험 점수",
+            "orders_recent_90d": "최근 90일 주문 수",
+            "items_recent_90d": "최근 90일 상품 수",
+            "revenue_recent_90d": "최근 90일 상품 판매액 (R$)",
+            "orders_previous_90d": "직전 90일 주문 수",
+            "revenue_previous_90d": "직전 90일 상품 판매액 (R$)",
+            "days_since_last_order": "마지막 주문 후 일수",
+            "churned_next_90d": "이후 90일 실제 이탈",
+        }
+
+        if flagged.empty:
+            st.info("현재 기준을 넘는 판매자가 없어.")
+        else:
+            shown = flagged[list(labels)].rename(columns=labels)
+            shown["이탈 위험 점수"] = shown["이탈 위험 점수"].map(
+                lambda score: f"{score:.1%}"
+            )
+            shown["이후 90일 실제 이탈"] = shown[
+                "이후 90일 실제 이탈"
+            ].map({0: "유지", 1: "이탈"})
+            st.dataframe(shown, hide_index=True, use_container_width=True)
+
+        st.caption(
+            "이 화면은 과거 주문 자료를 시간순으로 나눈 검증용 예측이야. "
+            "표의 실제 이탈은 과거 평가 결과이며 현재 판매자 상태가 아니야."
+        )
+    except (FileNotFoundError, ValueError) as error:
+        st.warning(str(error))
+    except Exception as error:
+        st.error(f"판매자 이탈 예측을 준비하지 못했어: {error}")
 
     st.subheader("판매자 유형")
 
@@ -599,67 +654,90 @@ with product_tab:
 
 with question_tab:
     st.subheader("올리스트 데이터에 질문하기")
+    st.caption(
+        "질문의 뜻과 가까운 사실을 임베딩으로 찾고, 검색된 근거 안에서 답해."
+    )
 
     facts_path = Path(__file__).with_name("olist_facts.csv")
 
     with st.form("olist_question_form"):
         question = st.text_input(
             "질문",
-            placeholder="지연 주문 중 별점 2점 이하는 얼마나 돼?",
+            placeholder="신용카드 결제 금액과 지연 배송의 별점 차이를 알려 줘.",
         )
         submitted = st.form_submit_button("근거 찾기")
 
     if submitted:
-        normalized_question = "".join(question.split())
-        fact_id = None
-
-        if any(word in normalized_question for word in ("2점이하", "저평점")):
-            fact_id = "F02"
-        elif any(word in normalized_question for word in ("평균별점", "평균평점")):
-            fact_id = "F01"
-
-        if fact_id is None:
-            st.info("현재 참고할 수 있는 데이터에서 이 질문에 답할 근거를 찾지 못했어요.")
+        if not question.strip():
+            st.warning("질문을 입력해 줘.")
         elif not facts_path.is_file():
-            st.warning("olist_facts.csv를 app.py와 같은 폴더에 넣어 줘.")
+            st.warning("app.py와 같은 폴더에 olist_facts.csv를 넣어 줘.")
         else:
-            facts = pd.read_csv(facts_path)
-            matches = facts.loc[facts["사실ID"].eq(fact_id)]
+            try:
+                facts = pd.read_csv(facts_path, encoding="utf-8-sig").fillna("")
+                documents = tuple(
+                    f"분야: {row['분야']}\n내용: {row['내용']}\n"
+                    f"기준: {row['기준']}\n출처: {row['출처']}"
+                    for row in facts.to_dict(orient="records")
+                )
 
-            if matches.empty:
-                st.info("사실표에서 해당 근거를 찾지 못했어.")
-            else:
-                fact = matches.iloc[0]
+                with st.spinner("질문과 사실표를 임베딩으로 비교하는 중…"):
+                    document_vectors = embed_fact_documents(documents)
+                    query_vector = OpenAI().embeddings.create(
+                        model="text-embedding-3-small",
+                        input=question.strip(),
+                    ).data[0].embedding
 
-                try:
-                    with st.spinner("근거를 바탕으로 답변을 만드는 중…"):
-                        response = OpenAI().chat.completions.create(
-                            model="gpt-4.1-mini",
-                            messages=[
-                                {
-                                    "role": "system",
-                                    "content": (
-                                        "제공된 근거만 사용해 한국어로 짧게 답해. "
-                                        "수치를 정확히 전달해. "
-                                        "근거로 답할 수 없으면 근거가 부족하다고 말해."
-                                    ),
-                                },
-                                {
-                                    "role": "user",
-                                    "content": (
-                                        f"질문: {question}\n"
-                                        f"분석 결과: {fact['내용']}\n"
-                                        f"집계 기준: {fact['기준']}"
-                                    ),
-                                },
-                            ],
-                        )
+                query_length = sum(value * value for value in query_vector) ** 0.5
+                ranked = []
+                for index, document_vector in enumerate(document_vectors):
+                    doc_length = sum(value * value for value in document_vector) ** 0.5
+                    similarity = sum(
+                        query_value * document_value
+                        for query_value, document_value in zip(query_vector, document_vector)
+                    ) / max(query_length * doc_length, 1e-12)
+                    ranked.append((similarity, index))
 
-                    st.write(response.choices[0].message.content)
-                except OpenAIError:
-                    st.warning("AI 답변을 가져오지 못했어. 아래는 사실표에서 찾은 근거야.")
-                    st.write(fact["내용"])
+                ranked.sort(reverse=True)
+                matches = [(score, facts.iloc[index]) for score, index in ranked[:3]]
+                context = "\n\n".join(
+                    f"[{fact['사실ID']}] {fact['내용']} "
+                    f"집계 기준: {fact['기준']} 출처: {fact['출처']}"
+                    for _, fact in matches
+                )
 
-                st.caption(f"집계 기준 · {fact['기준']}")
-                st.caption(f"출처 · {fact['출처']} ({fact['사실ID']})")
+                with st.spinner("찾은 근거를 바탕으로 답변을 만드는 중…"):
+                    response = OpenAI().chat.completions.create(
+                        model="gpt-4.1-mini",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "제공된 사실만 사용해 한국어로 짧게 답해. "
+                                    "수치·단위·집계 범위를 바꾸지 마. "
+                                    "근거가 부족하면 부족하다고 말하고 추측하지 마."
+                                ),
+                            },
+                            {
+                                "role": "user",
+                                "content": f"질문: {question}\n\n검색된 사실:\n{context}",
+                            },
+                        ],
+                    )
 
+                st.write(response.choices[0].message.content)
+                st.subheader("검색된 근거")
+                for score, fact in matches:
+                    with st.expander(
+                        f"{fact['사실ID']} · {fact['분야']} · 유사도 {score:.3f}"
+                    ):
+                        st.write(fact["내용"])
+                        st.caption(f"집계 기준 · {fact['기준']}")
+                        st.caption(f"출처 · {fact['출처']}")
+            except OpenAIError as error:
+                st.error(
+                    "임베딩 검색이나 답변을 준비하지 못했어. "
+                    f"OPENAI_API_KEY와 API 상태를 확인해 줘. ({error})"
+                )
+            except (KeyError, ValueError, TypeError) as error:
+                st.error(f"사실표 형식을 읽지 못했어: {error}")
