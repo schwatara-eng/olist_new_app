@@ -367,18 +367,12 @@ with product_tab:
         .mark_bar(color="#337CB0")
         .encode(
             x=alt.X("order_count:Q", title="주문 수 (건)"),
-            y=alt.Y(
-                "customer_state:N",
-                title="고객 지역 (주)",
-                sort="-x",
-                scale=alt.Scale(paddingInner=0.25, paddingOuter=0.1),
-            ),
+            y=alt.Y("customer_state:N", title="고객 지역 (주)", sort="-x"),
             tooltip=[
                 alt.Tooltip("customer_state:N", title="고객 지역"),
                 alt.Tooltip("order_count:Q", title="주문 수", format=",d"),
             ],
         )
-        .properties(height=180)
     )
 
     st.altair_chart(state_chart)
