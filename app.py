@@ -8,7 +8,7 @@ from openai import OpenAI, OpenAIError
 
 st.set_page_config(page_title="Olist 배송 분석")
 
-st.title("배송 지연과 리뷰 별점")
+st.title("올리스트 배송 분석 대시보드")
 order_tab, delivery_tab, product_tab, question_tab = st.tabs(
     ["주문·결제", "배송·리뷰", "상품·지역", "데이터 질문"]
 )
