@@ -552,7 +552,9 @@ with product_tab:
                     title="판매 상품 수 (행)",
                     scale=alt.Scale(
                         domain=[0, max_sold_items],
+                        range=[0, 470],
                         nice=False,
+                        padding=0,
                     ),
                     axis=alt.Axis(values=sales_tick_values),
                 ),
@@ -574,7 +576,7 @@ with product_tab:
                     ),
                 ],
             )
-            .properties(width=400, height=180)
+            .properties(width=470, height=180)
         )
 
         bestseller_chart = alt.hconcat(
