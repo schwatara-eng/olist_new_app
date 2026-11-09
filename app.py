@@ -367,12 +367,18 @@ with product_tab:
         .mark_bar(color="#337CB0")
         .encode(
             x=alt.X("order_count:Q", title="주문 수 (건)"),
-            y=alt.Y("customer_state:N", title="고객 지역 (주)", sort="-x"),
+            y=alt.Y(
+                "customer_state:N",
+                title="고객 지역 (주)",
+                sort="-x",
+                scale=alt.Scale(paddingInner=0.25, paddingOuter=0.1),
+            ),
             tooltip=[
                 alt.Tooltip("customer_state:N", title="고객 지역"),
                 alt.Tooltip("order_count:Q", title="주문 수", format=",d"),
             ],
         )
+        .properties(height=180)
     )
 
     st.altair_chart(state_chart)
@@ -477,6 +483,16 @@ with product_tab:
             regional_best_sellers["product_id"].str.slice(0, 8) + "…"
         )
         row_sort = list(range(len(regional_best_sellers)))
+        max_sold_items = int(regional_best_sellers["sold_items"].max())
+        sales_tick_values = sorted(
+            {
+                0,
+                round(max_sold_items * 0.25),
+                round(max_sold_items * 0.5),
+                round(max_sold_items * 0.75),
+                max_sold_items,
+            }
+        )
 
         product_id_chart = (
             alt.Chart(regional_best_sellers)
@@ -488,13 +504,18 @@ with product_tab:
             )
             .encode(
                 x=alt.value(0),
-                y=alt.Y("row_order:O", sort=row_sort, axis=None),
+                y=alt.Y(
+                    "row_order:O",
+                    sort=row_sort,
+                    axis=None,
+                    scale=alt.Scale(paddingInner=0.25, paddingOuter=0.1),
+                ),
                 text=alt.Text("product_id_short:N"),
                 tooltip=alt.Tooltip("product_id:N", title="상품 ID"),
             )
             .properties(
-                width=120,
-                height=300,
+                width=70,
+                height=180,
                 title=alt.TitleParams(text="상품 ID", anchor="start", fontSize=12),
             )
         )
@@ -514,8 +535,8 @@ with product_tab:
                 tooltip=alt.Tooltip("category:N", title="카테고리"),
             )
             .properties(
-                width=160,
-                height=300,
+                width=150,
+                height=180,
                 title=alt.TitleParams(text="카테고리명", anchor="start", fontSize=12),
             )
         )
@@ -524,8 +545,21 @@ with product_tab:
             alt.Chart(regional_best_sellers)
             .mark_bar(color="#337CB0")
             .encode(
-                x=alt.X("sold_items:Q", title="판매 상품 수 (행)"),
-                y=alt.Y("row_order:O", sort=row_sort, axis=None),
+                x=alt.X(
+                    "sold_items:Q",
+                    title="판매 상품 수 (행)",
+                    scale=alt.Scale(
+                        domain=[0, max_sold_items],
+                        nice=False,
+                    ),
+                    axis=alt.Axis(values=sales_tick_values),
+                ),
+                y=alt.Y(
+                    "row_order:O",
+                    sort=row_sort,
+                    axis=None,
+                    scale=alt.Scale(paddingInner=0.25, paddingOuter=0.1),
+                ),
                 tooltip=[
                     alt.Tooltip("product_id:N", title="상품 ID"),
                     alt.Tooltip("category:N", title="카테고리"),
@@ -538,7 +572,7 @@ with product_tab:
                     ),
                 ],
             )
-            .properties(width=320, height=300)
+            .properties(width=400, height=180)
         )
 
         bestseller_chart = alt.hconcat(
