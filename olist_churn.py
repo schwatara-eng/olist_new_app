@@ -164,8 +164,16 @@ def build_churn_report(data_dir: str | Path) -> tuple[pd.DataFrame, dict]:
     dates = sorted(records["snapshot_date"].unique())
     split_at = max(1, int(len(dates) * 0.8))
     split_at = min(split_at, len(dates) - 1)
-    training_dates = set(dates[:split_at])
     testing_dates = set(dates[split_at:])
+    test_start = pd.Timestamp(min(testing_dates))
+    training_dates = {
+        date
+        for date in dates
+        if pd.Timestamp(date) + pd.Timedelta(days=90) <= test_start
+    }
+
+    if not training_dates or not testing_dates:
+        raise ValueError("시간순 학습·평가 구간을 나누기에 이력이 부족해.")
 
     train = records.loc[records["snapshot_date"].isin(training_dates)]
     test = records.loc[records["snapshot_date"].isin(testing_dates)]
