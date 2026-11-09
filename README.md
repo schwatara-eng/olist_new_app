@@ -6,6 +6,8 @@
 
 브라질 전자상거래 **Olist** 주문·상품·리뷰 데이터 분석 · Streamlit 웹앱
 
+🚀 **배포된 대시보드:** [Olist 배송 분석 대시보드](https://olistnewappgit-ib4dhdezq43pseivtvm6up.streamlit.app/)
+
 `Python` · `Pandas` · `scikit-learn` · `Streamlit` · `Altair` · `OpenAI API`
 
 </div>
@@ -117,7 +119,7 @@
 ## 💬 데이터 질문 — 근거부터 찾고 답한다
 
 ```
-질문 입력  →  키워드로 사실표(olist_facts.csv) 검색  →  근거 행 선택  →  GPT가 근거만으로 답변
+질문 입력  →  임베딩으로 사실 검색  →  상위 3개 근거 선택  →  GPT가 근거만으로 답변
 ```
 
 **예시**
@@ -127,7 +129,7 @@
 > 🤖 **62.4%** · 기준 표시 · 출처 `olist_low_rating_summary.csv (F02)`
 
 - 근거를 못 찾으면 지어내지 않고 **안내 문구**를 보여 줌
-- 현재 다루는 범위: 배송 상태별 **평균 별점(F01)**, **저평점 비율(F02)**
+- 사실표 범위: 배송·리뷰, 지역, 상품 카테고리, 결제 관련 사실 **F01–F08**
 
 <br>
 
@@ -171,7 +173,9 @@ olist_new_app/
 ├─ olist_low_rating_summary.csv        배송 상태별 저평점 비율
 ├─ olist_seller_cluster_summary.csv    판매자 유형 요약
 ├─ olist_churn_threshold_summary.csv   이탈 점수 기준별 시험 결과
-├─ olist_facts.csv                     데이터 질문용 사실표
+├─ olist_facts.csv                     임베딩 검색용 사실표
+├─ olist_churn.py                      판매자 이탈 예측·평가
+├─ requirements.txt                    앱 실행 패키지
 ├─ olist_recommendation.pkl            유사 상품 추천 모델
 └─ olist_sentiment.pkl                 리뷰 감성 분석 모델
 ```
