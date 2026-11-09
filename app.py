@@ -493,7 +493,7 @@ with product_tab:
                 tooltip=alt.Tooltip("product_id:N", title="상품 ID"),
             )
             .properties(
-                width=140,
+                width=120,
                 height=300,
                 title=alt.TitleParams(text="상품 ID", anchor="start", fontSize=12),
             )
@@ -514,7 +514,7 @@ with product_tab:
                 tooltip=alt.Tooltip("category:N", title="카테고리"),
             )
             .properties(
-                width=200,
+                width=160,
                 height=300,
                 title=alt.TitleParams(text="카테고리명", anchor="start", fontSize=12),
             )
@@ -538,7 +538,7 @@ with product_tab:
                     ),
                 ],
             )
-            .properties(width=420, height=300)
+            .properties(width=320, height=300)
         )
 
         bestseller_chart = alt.hconcat(
