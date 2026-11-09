@@ -466,31 +466,66 @@ with product_tab:
             ascending=False,
         )
         .head(10)
+        .reset_index(drop=True)
     )
 
     if regional_best_sellers.empty:
         st.info("선택한 지역에서 집계할 상품이 없어.")
     else:
-        regional_best_sellers["product_label"] = (
-            regional_best_sellers["product_id"].str.slice(0, 8)
-            + "… · "
-            + regional_best_sellers["category"]
+        regional_best_sellers["row_order"] = range(len(regional_best_sellers))
+        regional_best_sellers["product_id_short"] = (
+            regional_best_sellers["product_id"].str.slice(0, 8) + "…"
         )
-        bestseller_chart = (
+        row_sort = list(range(len(regional_best_sellers)))
+
+        product_id_chart = (
+            alt.Chart(regional_best_sellers)
+            .mark_text(
+                align="right",
+                baseline="middle",
+                color="#64748B",
+                fontSize=11,
+            )
+            .encode(
+                x=alt.value(132),
+                y=alt.Y("row_order:O", sort=row_sort, axis=None),
+                text=alt.Text("product_id_short:N"),
+                tooltip=alt.Tooltip("product_id:N", title="상품 ID"),
+            )
+            .properties(
+                width=140,
+                height=300,
+                title=alt.TitleParams(text="상품 ID", anchor="start", fontSize=12),
+            )
+        )
+
+        category_chart = (
+            alt.Chart(regional_best_sellers)
+            .mark_text(
+                align="left",
+                baseline="middle",
+                color="#64748B",
+                fontSize=11,
+            )
+            .encode(
+                x=alt.value(8),
+                y=alt.Y("row_order:O", sort=row_sort, axis=None),
+                text=alt.Text("category:N"),
+                tooltip=alt.Tooltip("category:N", title="카테고리"),
+            )
+            .properties(
+                width=200,
+                height=300,
+                title=alt.TitleParams(text="카테고리명", anchor="start", fontSize=12),
+            )
+        )
+
+        bestseller_bars = (
             alt.Chart(regional_best_sellers)
             .mark_bar(color="#337CB0")
             .encode(
                 x=alt.X("sold_items:Q", title="판매 상품 수 (행)"),
-                y=alt.Y(
-                    "product_label:N",
-                    title="상품 ID 앞 8자리 · 카테고리",
-                    sort="-x",
-                    axis=alt.Axis(
-                        labelLimit=500,
-                        labelFontSize=11,
-                        labelPadding=8,
-                    ),
-                ),
+                y=alt.Y("row_order:O", sort=row_sort, axis=None),
                 tooltip=[
                     alt.Tooltip("product_id:N", title="상품 ID"),
                     alt.Tooltip("category:N", title="카테고리"),
@@ -503,8 +538,16 @@ with product_tab:
                     ),
                 ],
             )
-            .properties(width=380, height=300)
+            .properties(width=420, height=300)
         )
+
+        bestseller_chart = alt.hconcat(
+            product_id_chart,
+            category_chart,
+            bestseller_bars,
+            spacing=8,
+        ).resolve_scale(y="shared")
+
         st.altair_chart(bestseller_chart, use_container_width=False)
         st.dataframe(
             regional_best_sellers[
@@ -521,7 +564,6 @@ with product_tab:
             hide_index=True,
             use_container_width=True,
         )
-
     st.divider()
     st.subheader("고객 주문 분포 지도")
 
