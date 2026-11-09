@@ -1,3 +1,9 @@
-﻿사실ID,분야,내용,기준,출처
+사실ID,분야,내용,기준,출처
 F01,배송·리뷰,"제때 도착한 주문의 평균 별점은 4.29점, 지연 도착한 주문은 2.27점으로 2.02점 차이가 났다.","배송 완료 주문 중 실제 도착일, 예정일, 별점이 모두 기록된 주문. 예정일 다음 날 이후에 도착한 주문을 지연으로 분류.",olist_delivery_summary.csv
 F02,배송·리뷰,"별점 2점 이하인 주문의 비율은 제때 도착한 주문에서 9.2%, 지연 도착한 주문에서 62.4%였다.","배송 완료 주문 중 실제 도착일, 예정일, 별점이 모두 기록된 주문. 예정일 다음 날 이후에 도착한 주문을 지연으로 분류. 저평점은 별점 2점 이하.",olist_low_rating_summary.csv
+"F03","지역","고객 지역별 주문 수는 상파울루주(SP)가 41,746건으로 가장 많았다.","전체 주문 99,441건 기준. 주문표의 order_id를 고객표의 customer_id로 연결하고 customer_state별 고유 주문 수를 집계. 지역 미기록은 별도 그룹 처리.","data/olist_orders_dataset.csv; data/olist_customers_dataset.csv"
+"F04","지역","판매자 지역별 주문 상품 수는 상파울루주(SP)가 80,342개로 가장 많았다.","주문 상품 112,650행 기준. 주문 상품표의 seller_id를 판매자표에 연결하여 seller_state별 상품 행 수 집계. 판매자 수나 고유 주문 수가 아님.","data/olist_order_items_dataset.csv; data/olist_sellers_dataset.csv"
+"F05","상품","주문 상품 수가 가장 많은 카테고리는 침구·욕실·테이블용품(bed_bath_table)으로 11,115개였다.","주문 상품 112,650행 기준. product_id로 상품표를 연결하고 카테고리명을 영어로 변환. 미분류 상품 포함, 상품 행 수 집계.","data/olist_order_items_dataset.csv; data/olist_products_dataset.csv; data/product_category_name_translation.csv"
+"F06","상품","상품 판매액이 가장 큰 카테고리는 건강·미용(health_beauty)으로 R$ 1,258,681.34였다.","주문 상품 112,650행 기준. 상품표와 카테고리 번역표를 연결하여 카테고리별 price 합계 집계. 배송비(freight_value)는 제외하며 취소·미배송 주문도 원본에 포함된 집계.","data/olist_order_items_dataset.csv; data/olist_products_dataset.csv; data/product_category_name_translation.csv"
+"F07","결제","기록된 결제 금액 합계가 가장 큰 결제수단은 신용카드(credit_card)로 R$ 12,542,084.19였다.","결제 기록 103,886행 전체 기준. payment_type별 payment_value 합계. 나눠 결제된 주문은 결제수단별 기록에 각각 반영.","data/olist_order_payments_dataset.csv"
+"F08","결제","결제 기록이 있는 주문의 평균 결제 금액은 R$ 160.99였다(합계 R$ 16,008,872.12 ÷ 99,440건).","결제 기록 103,886행의 payment_value를 주문별로 합친 후 결제 기록이 있는 고유 주문 99,440건으로 나눈 평균. 주문 원본 99,441건 중 결제 기록이 없는 1건은 분모 제외. 배송비 포함 결제금액 기준.","data/olist_order_payments_dataset.csv; data/olist_orders_dataset.csv"
