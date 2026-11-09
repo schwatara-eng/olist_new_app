@@ -485,6 +485,11 @@ with product_tab:
                     "product_label:N",
                     title="상품 ID 앞 8자리 · 카테고리",
                     sort="-x",
+                    axis=alt.Axis(
+                        labelLimit=500,
+                        labelFontSize=11,
+                        labelPadding=8,
+                    ),
                 ),
                 tooltip=[
                     alt.Tooltip("product_id:N", title="상품 ID"),
@@ -498,8 +503,9 @@ with product_tab:
                     ),
                 ],
             )
+            .properties(width=380, height=300)
         )
-        st.altair_chart(bestseller_chart, use_container_width=True)
+        st.altair_chart(bestseller_chart, use_container_width=False)
         st.dataframe(
             regional_best_sellers[
                 ["product_id", "category", "sold_items", "order_count", "product_sales"]
