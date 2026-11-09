@@ -9,8 +9,8 @@ from openai import OpenAI, OpenAIError
 st.set_page_config(page_title="Olist 배송 분석")
 
 st.title("올리스트 배송 분석 대시보드")
-order_tab, delivery_tab, product_tab, question_tab = st.tabs(
-    ["주문·결제", "배송·리뷰", "상품·지역", "데이터 질문"]
+order_tab, delivery_tab, product_tab, seller_tab, question_tab = st.tabs(
+    ["주문·결제", "배송·리뷰", "상품·고객 지역", "판매자", "데이터 질문"]
 )
 
 @st.cache_data(show_spinner=False)
@@ -260,94 +260,6 @@ with delivery_tab:
                 st.warning("리뷰 문장을 입력해 줘.")
 
 with product_tab:
-    st.subheader("판매자 이탈 위험 예측")
-    st.caption(
-        "최근 90일 판매 흐름으로 이후 90일 주문 중단 위험을 예측해. "
-        "시간순으로 과거 구간을 나눠 평가하는 시뮬레이션이야."
-    )
-
-    try:
-        with st.spinner("판매자 주문 이력을 학습하고 평가하는 중…"):
-            predictions, churn_metrics = get_seller_churn_report(str(data_dir))
-
-        threshold = st.slider(
-            "이탈 위험 표시 기준",
-            min_value=0.10,
-            max_value=0.90,
-            value=0.50,
-            step=0.05,
-            key="seller_churn_threshold",
-        )
-
-        metric_columns = st.columns(4)
-        metric_columns[0].metric("정밀도", f"{churn_metrics['precision']:.1%}")
-        metric_columns[1].metric("재현율", f"{churn_metrics['recall']:.1%}")
-        metric_columns[2].metric("F1", f"{churn_metrics['f1']:.1%}")
-        metric_columns[3].metric("예측 기준일", churn_metrics["snapshot_date"])
-
-        st.caption(
-            f"학습 기준일까지 {churn_metrics['train_through']} · "
-            f"시간순 평가 시작 {churn_metrics['test_from']} · "
-            "최근 90일 활동, 직전 90일 변화, 마지막 주문 후 경과일을 사용해."
-        )
-
-        flagged = predictions.loc[
-            predictions["churn_probability"].ge(threshold)
-        ].copy()
-        st.metric("선택한 기준의 점검 판매자", f"{len(flagged):,}명")
-
-        labels = {
-            "seller_id": "판매자 ID",
-            "churn_probability": "이탈 위험 점수",
-            "orders_recent_90d": "최근 90일 주문 수",
-            "items_recent_90d": "최근 90일 상품 수",
-            "revenue_recent_90d": "최근 90일 상품 판매액 (R$)",
-            "orders_previous_90d": "직전 90일 주문 수",
-            "revenue_previous_90d": "직전 90일 상품 판매액 (R$)",
-            "days_since_last_order": "마지막 주문 후 일수",
-            "churned_next_90d": "이후 90일 실제 이탈",
-        }
-
-        if flagged.empty:
-            st.info("현재 기준을 넘는 판매자가 없어.")
-        else:
-            shown = flagged[list(labels)].rename(columns=labels)
-            shown["이탈 위험 점수"] = shown["이탈 위험 점수"].map(
-                lambda score: f"{score:.1%}"
-            )
-            shown["이후 90일 실제 이탈"] = shown[
-                "이후 90일 실제 이탈"
-            ].map({0: "유지", 1: "이탈"})
-            st.dataframe(shown, hide_index=True, use_container_width=True)
-
-        st.caption(
-            "이 화면은 과거 주문 자료를 시간순으로 나눈 검증용 예측이야. "
-            "표의 실제 이탈은 과거 평가 결과이며 현재 판매자 상태가 아니야."
-        )
-    except (FileNotFoundError, ValueError) as error:
-        st.warning(str(error))
-    except Exception as error:
-        st.error(f"판매자 이탈 예측을 준비하지 못했어: {error}")
-
-    st.subheader("판매자 유형")
-
-    cluster_path = Path(__file__).with_name("olist_seller_cluster_summary.csv")
-
-    if cluster_path.is_file():
-        cluster_summary = pd.read_csv(cluster_path).rename(
-            columns={
-                "cluster": "그룹 번호",
-                "seller_count": "판매자 수",
-                "median_item_count": "판매 상품 수 중앙값",
-                "median_item_value": "상품 판매액 중앙값 (R$)",
-            }
-        )
-
-        st.dataframe(cluster_summary, hide_index=True)
-        st.caption("판매액은 배송비를 제외한 상품 금액이야.")
-    else:
-        st.warning("판매자 유형 요약 CSV를 app.py와 같은 폴더에 넣어 줘.")
-
     st.subheader("주문 상품 수 상위 10개 카테고리")
 
     items = pd.read_csv(
@@ -458,56 +370,6 @@ with product_tab:
     st.caption(
         "원본 주문 CSV 전체 기준 · 주문 수 상위 10개 지역 표시. "
         "고객표에 지역이 없으면 ‘미기록’으로 집계해."
-    )
-
-    st.divider()
-    st.subheader("판매자 지역별 주문 상품 수")
-
-    items_for_region = pd.read_csv(
-        data_dir / "olist_order_items_dataset.csv",
-        usecols=["seller_id"],
-    )
-
-    sellers = pd.read_csv(
-        data_dir / "olist_sellers_dataset.csv",
-        usecols=["seller_id", "seller_state"],
-    )
-
-    items_with_seller_region = items_for_region.merge(
-        sellers,
-        on="seller_id",
-        how="left",
-        validate="many_to_one",
-    )
-
-    items_with_seller_region["seller_state"] = (
-        items_with_seller_region["seller_state"].fillna("미기록")
-    )
-
-    seller_state_summary = (
-        items_with_seller_region.groupby("seller_state")
-        .size()
-        .reset_index(name="item_count")
-        .nlargest(10, "item_count")
-    )
-
-    seller_state_chart = (
-        alt.Chart(seller_state_summary)
-        .mark_bar(color="#337CB0")
-        .encode(
-            x=alt.X("item_count:Q", title="주문 상품 수 (행)"),
-            y=alt.Y("seller_state:N", title="판매자 지역 (주)", sort="-x"),
-            tooltip=[
-                alt.Tooltip("seller_state:N", title="판매자 지역"),
-                alt.Tooltip("item_count:Q", title="주문 상품 수", format=",d"),
-            ],
-        )
-    )
-
-    st.altair_chart(seller_state_chart)
-    st.caption(
-        "원본 주문 상품 CSV 전체 기준 · 상위 10개 지역 표시. "
-        "판매자 지역이 없으면 ‘미기록’으로 집계해."
     )
 
     st.divider()
@@ -651,6 +513,147 @@ with product_tab:
                 .rename(columns=column_labels),
                 hide_index=True,
             )
+
+
+with seller_tab:
+    st.subheader("판매자 이탈 위험 예측")
+    st.caption(
+        "최근 90일 판매 흐름으로 이후 90일 주문 중단 위험을 예측해. "
+        "시간순으로 과거 구간을 나눠 평가하는 시뮬레이션이야."
+    )
+
+    try:
+        with st.spinner("판매자 주문 이력을 학습하고 평가하는 중…"):
+            predictions, churn_metrics = get_seller_churn_report(str(data_dir))
+
+        threshold = st.slider(
+            "이탈 위험 표시 기준",
+            min_value=0.10,
+            max_value=0.90,
+            value=0.50,
+            step=0.05,
+            key="seller_churn_threshold",
+        )
+
+        metric_columns = st.columns(4)
+        metric_columns[0].metric("정밀도", f"{churn_metrics['precision']:.1%}")
+        metric_columns[1].metric("재현율", f"{churn_metrics['recall']:.1%}")
+        metric_columns[2].metric("F1", f"{churn_metrics['f1']:.1%}")
+        metric_columns[3].metric("예측 기준일", churn_metrics["snapshot_date"])
+
+        st.caption(
+            f"학습 기준일까지 {churn_metrics['train_through']} · "
+            f"시간순 평가 시작 {churn_metrics['test_from']} · "
+            "최근 90일 활동, 직전 90일 변화, 마지막 주문 후 경과일을 사용해."
+        )
+
+        flagged = predictions.loc[
+            predictions["churn_probability"].ge(threshold)
+        ].copy()
+        st.metric("선택한 기준의 점검 판매자", f"{len(flagged):,}명")
+
+        labels = {
+            "seller_id": "판매자 ID",
+            "churn_probability": "이탈 위험 점수",
+            "orders_recent_90d": "최근 90일 주문 수",
+            "items_recent_90d": "최근 90일 상품 수",
+            "revenue_recent_90d": "최근 90일 상품 판매액 (R$)",
+            "orders_previous_90d": "직전 90일 주문 수",
+            "revenue_previous_90d": "직전 90일 상품 판매액 (R$)",
+            "days_since_last_order": "마지막 주문 후 일수",
+            "churned_next_90d": "이후 90일 실제 이탈",
+        }
+
+        if flagged.empty:
+            st.info("현재 기준을 넘는 판매자가 없어.")
+        else:
+            shown = flagged[list(labels)].rename(columns=labels)
+            shown["이탈 위험 점수"] = shown["이탈 위험 점수"].map(
+                lambda score: f"{score:.1%}"
+            )
+            shown["이후 90일 실제 이탈"] = shown[
+                "이후 90일 실제 이탈"
+            ].map({0: "유지", 1: "이탈"})
+            st.dataframe(shown, hide_index=True, use_container_width=True)
+
+        st.caption(
+            "이 화면은 과거 주문 자료를 시간순으로 나눈 검증용 예측이야. "
+            "표의 실제 이탈은 과거 평가 결과이며 현재 판매자 상태가 아니야."
+        )
+    except (FileNotFoundError, ValueError) as error:
+        st.warning(str(error))
+    except Exception as error:
+        st.error(f"판매자 이탈 예측을 준비하지 못했어: {error}")
+
+    st.subheader("판매자 유형")
+
+    cluster_path = Path(__file__).with_name("olist_seller_cluster_summary.csv")
+
+    if cluster_path.is_file():
+        cluster_summary = pd.read_csv(cluster_path).rename(
+            columns={
+                "cluster": "그룹 번호",
+                "seller_count": "판매자 수",
+                "median_item_count": "판매 상품 수 중앙값",
+                "median_item_value": "상품 판매액 중앙값 (R$)",
+            }
+        )
+
+        st.dataframe(cluster_summary, hide_index=True)
+        st.caption("판매액은 배송비를 제외한 상품 금액이야.")
+    else:
+        st.warning("판매자 유형 요약 CSV를 app.py와 같은 폴더에 넣어 줘.")
+
+    st.subheader("판매자 지역별 주문 상품 수")
+
+    items_for_region = pd.read_csv(
+        data_dir / "olist_order_items_dataset.csv",
+        usecols=["seller_id"],
+    )
+
+    sellers = pd.read_csv(
+        data_dir / "olist_sellers_dataset.csv",
+        usecols=["seller_id", "seller_state"],
+    )
+
+    items_with_seller_region = items_for_region.merge(
+        sellers,
+        on="seller_id",
+        how="left",
+        validate="many_to_one",
+    )
+
+    items_with_seller_region["seller_state"] = (
+        items_with_seller_region["seller_state"].fillna("미기록")
+    )
+
+    seller_state_summary = (
+        items_with_seller_region.groupby("seller_state")
+        .size()
+        .reset_index(name="item_count")
+        .nlargest(10, "item_count")
+    )
+
+    seller_state_chart = (
+        alt.Chart(seller_state_summary)
+        .mark_bar(color="#337CB0")
+        .encode(
+            x=alt.X("item_count:Q", title="주문 상품 수 (행)"),
+            y=alt.Y("seller_state:N", title="판매자 지역 (주)", sort="-x"),
+            tooltip=[
+                alt.Tooltip("seller_state:N", title="판매자 지역"),
+                alt.Tooltip("item_count:Q", title="주문 상품 수", format=",d"),
+            ],
+        )
+    )
+
+    st.altair_chart(seller_state_chart)
+    st.caption(
+        "원본 주문 상품 CSV 전체 기준 · 상위 10개 지역 표시. "
+        "판매자 지역이 없으면 ‘미기록’으로 집계해."
+    )
+
+    st.divider()
 
 with question_tab:
     st.subheader("올리스트 데이터에 질문하기")
