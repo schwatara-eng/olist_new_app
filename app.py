@@ -481,13 +481,13 @@ with product_tab:
         product_id_chart = (
             alt.Chart(regional_best_sellers)
             .mark_text(
-                align="right",
+                align="left",
                 baseline="middle",
                 color="#64748B",
                 fontSize=11,
             )
             .encode(
-                x=alt.value(132),
+                x=alt.value(8),
                 y=alt.Y("row_order:O", sort=row_sort, axis=None),
                 text=alt.Text("product_id_short:N"),
                 tooltip=alt.Tooltip("product_id:N", title="상품 ID"),
