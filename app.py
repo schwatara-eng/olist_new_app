@@ -484,15 +484,18 @@ with product_tab:
         )
         row_sort = list(range(len(regional_best_sellers)))
         max_sold_items = int(regional_best_sellers["sold_items"].max())
-        sales_tick_values = sorted(
-            {
-                0,
-                round(max_sold_items * 0.25),
-                round(max_sold_items * 0.5),
-                round(max_sold_items * 0.75),
-                max_sold_items,
-            }
-        )
+        if max_sold_items <= 10:
+            sales_tick_values = list(range(max_sold_items + 1))
+        else:
+            sales_tick_values = sorted(
+                {
+                    0,
+                    round(max_sold_items * 0.25),
+                    round(max_sold_items * 0.5),
+                    round(max_sold_items * 0.75),
+                    max_sold_items,
+                }
+            )
 
         product_id_chart = (
             alt.Chart(regional_best_sellers)
